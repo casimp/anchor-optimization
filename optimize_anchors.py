@@ -188,7 +188,8 @@ def extract_from_xml(annotations, include_stride, resize=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optimize RetinaNet anchor configuration')
-    parser.add_argument('annotations', help='Path to CSV file containing annotations for anchor optimization.')
+    parser.add_argument('dataset_type', help='Either csv or pascal dataset format', type='str', default='pascal')
+    parser.add_argument('annotations', help='Path to file/folder containing annotations for anchor optimization.')
     parser.add_argument('--scales', type=int, help='Number of scales.', default=3)
     parser.add_argument('--ratios', type=int, help='Number of ratios, has to be an odd number.', default=3)
     parser.add_argument('--include-stride', action='store_true',
@@ -217,8 +218,12 @@ if __name__ == "__main__":
 
     print('Loading object dimensions.')
 
-    entries, image_shape = extract_from_csv(args.annotations, args.include_stride, args.resize,
-                                            args.image_min_side, args.image_max_side)
+    if args.dataset_type == 'csv':
+        entries, image_shape = extract_from_csv(args.annotations, args.include_stride, args.resize,
+                                                args.image_min_side, args.image_max_side)
+    else:
+        print('No resize functionality using pascal format')
+        entries, image_shape = extract_from_xml(args.annotations, args.include_stride, args.resize)
 
     print('Optimising anchors.')
 
