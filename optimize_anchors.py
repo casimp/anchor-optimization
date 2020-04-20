@@ -3,12 +3,15 @@ import csv
 import argparse
 import sys
 import os
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import scipy.optimize
 
+
 from PIL import Image
 from compute_overlap import compute_overlap
+from pathlib import Path
 
 from keras_retinanet.preprocessing.csv_generator import _open_for_csv
 from keras_retinanet.utils.anchors import generate_anchors, AnchorParameters, anchors_for_shape
@@ -90,6 +93,51 @@ def average_overlap(values, entries, state, image_shape, mode='focal', ratio_cou
 
     return result, not_matched
 
+def extract_from_csv(annotations, include_stride, resize, image_min_side, 
+                     image_max_side):
+
+    entries = np.zeros((0, 4))
+    max_x = 0
+    max_y = 0
+
+    with _open_for_csv(annotations) as file:
+        for line, row in enumerate(csv.reader(file, delimiter=',')):
+            x1, y1, x2, y2 = list(map(lambda x: int(x), row[1:5]))
+
+            if not x1 or not y1 or not x2 or not y2:
+                continue
+
+            if resize:
+                #Concat base path from annotations file follow retinanet
+                base_dir = os.path.split(annotations)[0]
+                relative_path = row[0]
+                image_path = os.path.join(base_dir,relative_path)
+                img = Image.open(image_path)
+
+                if hasattr(img, "shape"):
+                    image_shape = img.shape
+                else:
+                    image_shape = (img.size[0], img.size[1], 3)
+
+                scale = compute_resize_scale(image_shape, min_side=image_min_side, max_side=image_max_side)
+                x1, y1, x2, y2 = list(map(lambda x: int(x) * scale, row[1:5]))
+
+            max_x = max(x2, max_x)
+            max_y = max(y2, max_y)
+
+            if include_stride:
+                entry = np.expand_dims(np.array([x1, y1, x2, y2]), axis=0)
+                entries = np.append(entries, entry, axis=0)
+            else:
+                width = x2 - x1
+                height = y2 - y1
+                entry = np.expand_dims(np.array([-width / 2, -height / 2, width / 2, height / 2]), axis=0)
+                entries = np.append(entries, entry, axis=0)
+
+    image_shape = [max_y, max_x]
+
+    return entries, image_shape
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optimize RetinaNet anchor configuration')
@@ -115,10 +163,6 @@ if __name__ == "__main__":
     if args.ratios % 2 != 1:
         raise Exception('The number of ratios has to be odd.')
 
-    entries = np.zeros((0, 4))
-    max_x = 0
-    max_y = 0
-
     if args.seed:
         seed = np.random.RandomState(args.seed)
     else:
@@ -126,41 +170,8 @@ if __name__ == "__main__":
 
     print('Loading object dimensions.')
 
-    with _open_for_csv(args.annotations) as file:
-        for line, row in enumerate(csv.reader(file, delimiter=',')):
-            x1, y1, x2, y2 = list(map(lambda x: int(x), row[1:5]))
-
-            if not x1 or not y1 or not x2 or not y2:
-                continue
-
-            if args.resize:
-                #Concat base path from annotations file follow retinanet
-                base_dir = os.path.split(args.annotations)[0]
-                relative_path = row[0]
-                image_path = os.path.join(base_dir,relative_path)
-                img = Image.open(image_path)
-
-                if hasattr(img, "shape"):
-                    image_shape = img.shape
-                else:
-                    image_shape = (img.size[0], img.size[1], 3)
-
-                scale = compute_resize_scale(image_shape, min_side=args.image_min_side, max_side=args.image_max_side)
-                x1, y1, x2, y2 = list(map(lambda x: int(x) * scale, row[1:5]))
-
-            max_x = max(x2, max_x)
-            max_y = max(y2, max_y)
-
-            if args.include_stride:
-                entry = np.expand_dims(np.array([x1, y1, x2, y2]), axis=0)
-                entries = np.append(entries, entry, axis=0)
-            else:
-                width = x2 - x1
-                height = y2 - y1
-                entry = np.expand_dims(np.array([-width / 2, -height / 2, width / 2, height / 2]), axis=0)
-                entries = np.append(entries, entry, axis=0)
-
-    image_shape = [max_y, max_x]
+    entries, image_shape = extract_from_csv(args.annotations, args.include_stride, args.resize,
+                                            args.image_min_side, args.image_max_side)
 
     print('Optimising anchors.')
 
