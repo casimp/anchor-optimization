@@ -139,6 +139,53 @@ def extract_from_csv(annotations, include_stride, resize, image_min_side,
     return entries, image_shape
 
 
+def extract_from_xml(annotations, include_stride, resize=False):
+    """
+    Extract bounding boxes from a list of annotations in XML form - 
+    consistent with VOC datset format.
+
+    Args:
+    annotations (str): Path to folder with xml annotation files
+
+    Returns:
+    entries (np.array): Array with all bounding boxes (x1, y1, x2, y2)
+    image_shape (list): Unclear!
+    """
+    entries = np.zeros((0, 4))
+    max_x, max_y = 0, 0
+
+    p = Path(annotations).glob('*.xml')
+    for ann in p:
+        tree = ET.parse(ann)
+        root = tree.getroot()
+
+        # run through all defects in image and extract bounding points
+        for child in root.findall('object'):
+            x1 = int(child.find('bndbox').find('xmin').text)
+            y1 = int(child.find('bndbox').find('ymin').text)
+            x2 = int(child.find('bndbox').find('xmax').text)
+            y2 = int(child.find('bndbox').find('ymax').text)
+
+            if resize:
+                pass # Haven't yet implemented
+
+            if include_stride:
+                entry = np.array([x1, y1, x2, y2])[None, :]
+                entries = np.append(entries, entry, axis=0)
+            else:
+                w = x2 - x1
+                h = y2 - y1
+                entry = np.array([-w/2, -h/2, w/2, h/2])[None, :]
+                entries = np.append(entries, entry, axis=0)
+
+            max_x = max(x2, max_x)
+            max_y = max(y2, max_y)
+
+    image_shape = [max_y, max_x]
+
+    return entries, image_shape
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optimize RetinaNet anchor configuration')
     parser.add_argument('annotations', help='Path to CSV file containing annotations for anchor optimization.')
