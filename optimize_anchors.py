@@ -19,8 +19,8 @@ from keras_retinanet.utils.image import compute_resize_scale
 
 warnings.simplefilter("ignore")
 
-SIZES = [32, 64, 128, 256, 512]
-STRIDES = [8, 16, 32, 64, 128]
+SIZES = [4, 8, 16, 32, 64]
+STRIDES = [4, 8, 16, 32, 64]
 state = {'best_result': sys.maxsize}
 
 
@@ -188,7 +188,7 @@ def extract_from_xml(annotations, include_stride, resize=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optimize RetinaNet anchor configuration')
-    parser.add_argument('dataset_type', help='Either csv or pascal dataset format', type='str', default='pascal')
+    parser.add_argument('dataset_type', help='Either csv or pascal dataset format', type=str)
     parser.add_argument('annotations', help='Path to file/folder containing annotations for anchor optimization.')
     parser.add_argument('--scales', type=int, help='Number of scales.', default=3)
     parser.add_argument('--ratios', type=int, help='Number of ratios, has to be an odd number.', default=3)
